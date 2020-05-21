@@ -10,14 +10,14 @@ input_size = (448, 256, 3)
 learning_rate = 0.001
 min_lr = 0.0000001
 patience = 2
-batch_size = 16
+batch_size = 2
 epochs = 250
 percentages = [0.85, 0.10, 0.05] # Training, Validation, Testing
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Declare Interation Settings
 interations = [
-    {"model": Classic_UNet, "save_dir": 'runs/A3', "net_size": 3},
+    {"model": Classic_UNet, "save_dir": 'runs/A4', "net_size": 16},
 ]
 
 if __name__ == "__main__":

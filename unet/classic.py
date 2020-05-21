@@ -15,45 +15,50 @@ class Classic_UNet(nn.Module):
         s = net_size
 
         self.p_conv = DoubleConv(input_ch, 2*s)
+        self.s_down = Down(2*s, 16*s, force=16, mode='avg')
 
         self.down1 = Down(2*s, 4*s)
         self.down2 = Down(4*s, 8*s)
         self.down3 = Down(8*s, 16*s)
         self.down4 = Down(16*s, 16*s)
+
+        self.s_conv = DoubleConv(32*s, 16*s)
+
         self.up1 = Up(32*s, 8*s)
         self.up2 = Up(16*s, 4*s)
         self.up3 = Up(8*s, 2*s)
         self.up4 = Up(4*s, 2*s)
 
-        self.s_conv = DoubleConv(2*s, s)
-        self.f_conv = DoubleConv(3*s, s)
-        
         self.outc = OutConv(2*s, output_ch)
 
     def forward(self, a, b, c):
         za = self.p_conv(a)
-        zb = self.p_conv(b)
+        za = self.s_down(za)
+
         zc = self.p_conv(c)
-        
+        zc = self.s_down(zc)
+
+        zb = self.p_conv(b)
+
         xb2 = self.down1(zb)
         xb3 = self.down2(xb2)
         xb4 = self.down3(xb3)
         xb5 = self.down4(xb4)
 
+        yab = torch.cat([xb5, za], dim=1)
+        yab = self.s_conv(yab)
+        
+        ycb = torch.cat([xb5, zc], dim=1)
+        ycb = self.s_conv(ycb)
+
+        xb5 = torch.cat([yab, ycb], dim=1)
+        xb5 = self.s_conv(xb5)
+
         xb = self.up1(xb5, xb4)
         xb = self.up2(xb, xb3)
         xb = self.up3(xb, xb2)
         xb = self.up4(xb, zb)
-        xb = self.s_conv(xb)
-
-        yab = torch.cat([xb, za], dim=1)
-        yab = self.f_conv(yab)
-
-        ybc = torch.cat([xb, zc], dim=1)
-        ybc = self.f_conv(ybc)
-
-        out = torch.cat([yab, ybc], dim=1)
-        out = self.outc(out)
+        out = self.outc(xb)
 
         return out
 
@@ -78,10 +83,16 @@ class DoubleConv(nn.Module):
 class Down(nn.Module):
     """Downscaling with maxpool then double conv"""
 
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, force=2, mode='max'):
         super().__init__()
+
+        op = nn.MaxPool2d(force)
+        
+        if mode == 'avg':
+            op = nn.AvgPool2d(force)
+
         self.maxpool_conv = nn.Sequential(
-            nn.MaxPool2d(2),
+            op,
             DoubleConv(in_channels, out_channels)
         )
 

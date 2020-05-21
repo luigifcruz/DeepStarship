@@ -74,15 +74,15 @@ class ExternalSourcePipeline(Pipeline):
         
         self.seq = A.Compose({
             A.ElasticTransform(alpha=25, sigma=500, alpha_affine=1, approximate=True, p=1.0),
-            A.GaussianBlur(blur_limit=3, p=1)
-            #A.GlassBlur(sigma=0.55, max_delta=3, iterations=1, p=1)
+            A.GaussianBlur(blur_limit=3, p=1),
+            A.GaussNoise(p=1),
         })
         self.aug = ops.DLTensorPythonFunction(device="gpu", function=self.augmentation)
 
         self.cmn = ops.CropMirrorNormalize(device="gpu", std=255., mean=0., output_dtype=types.FLOAT, image_type=types.RGB)
 
         self.rotate = ops.Rotate(device='gpu', interp_type=types.INTERP_LINEAR, keep_size=True)
-        self.uniform = ops.Uniform(range = (-60., 60.))
+        self.uniform = ops.Uniform(range = (-50., 50.))
 
     def augmentation(self, dlpacks):
         tensors = torch.stack([torch_dlpack.from_dlpack(dlpack) for dlpack in dlpacks]).to('cpu')
