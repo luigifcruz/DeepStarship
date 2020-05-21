@@ -66,12 +66,12 @@ def run(model, net_size, root_dir, save_dir, input_size, batch_size, learning_ra
     elements = ['im1', 'im2', 'im3', 'targets']
 
     train_iter = ExternalInputIterator(batch_size=batch_size, data_dir=os.path.join(root_dir, 'train'))
-    train_pipe = ExternalSourcePipeline(data_iterator=iter(train_iter), batch_size=batch_size, num_threads=10, device_id=0, size=input_size)
+    train_pipe = ExternalSourcePipeline(data_iterator=iter(train_iter), batch_size=batch_size, num_threads=8, device_id=0, size=input_size)
     train_pipe.build()
     train_dali_iter = DALIGenericIterator([train_pipe], elements, train_iter.n)
 
-    valid_iter = ExternalInputIterator(batch_size=1, data_dir=os.path.join(root_dir, 'valid'))
-    valid_pipe = ExternalSourcePipeline(data_iterator=iter(valid_iter), batch_size=1, num_threads=1, device_id=0, size=input_size)
+    valid_iter = ExternalInputIterator(batch_size=4, data_dir=os.path.join(root_dir, 'valid'))
+    valid_pipe = ExternalSourcePipeline(data_iterator=iter(valid_iter), batch_size=4, num_threads=4, device_id=0, size=input_size)
     valid_pipe.build()
     valid_dali_iter = DALIGenericIterator([valid_pipe], elements, valid_iter.n)
     

@@ -70,16 +70,19 @@ class ExternalSourcePipeline(Pipeline):
 
         self.res = ops.Resize(device="gpu", resize_x=size[0], resize_y=size[1], image_type=types.RGB, interp_type=types.INTERP_LINEAR)
         self.down = ops.Resize(device="gpu", resize_x=size[0]//2, resize_y=size[1]//2, image_type=types.RGB, interp_type=types.INTERP_GAUSSIAN)
-        self.up = ops.Resize(device="gpu", resize_x=size[0], resize_y=size[1], image_type=types.RGB, interp_type=types.INTERP_GAUSSIAN)
+        self.up = ops.Resize(device="gpu", resize_x=size[0], resize_y=size[1], image_type=types.RGB, interp_type=types.INTERP_CUBIC)
         
         self.seq = A.Compose({
             A.ElasticTransform(alpha=25, sigma=500, alpha_affine=1, approximate=True, p=1.0),
-            #A.GaussianBlur(blur_limit=1, p=1)
-            A.GlassBlur(sigma=0.55, max_delta=3, iterations=1, p=1)
+            A.GaussianBlur(blur_limit=3, p=1)
+            #A.GlassBlur(sigma=0.55, max_delta=3, iterations=1, p=1)
         })
         self.aug = ops.DLTensorPythonFunction(device="gpu", function=self.augmentation)
 
         self.cmn = ops.CropMirrorNormalize(device="gpu", std=255., mean=0., output_dtype=types.FLOAT, image_type=types.RGB)
+
+        self.rotate = ops.Rotate(device='gpu', interp_type=types.INTERP_LINEAR, keep_size=True)
+        self.uniform = ops.Uniform(range = (-60., 60.))
 
     def augmentation(self, dlpacks):
         tensors = torch.stack([torch_dlpack.from_dlpack(dlpack) for dlpack in dlpacks]).to('cpu')
@@ -102,6 +105,11 @@ class ExternalSourcePipeline(Pipeline):
             im1 = self.res(im1)
             im2 = self.res(im2)
             im3 = self.res(im3)
+
+            angle = self.uniform()
+            im1 = self.rotate(im1, angle=angle)
+            im2 = self.rotate(im2, angle=angle)
+            im3 = self.rotate(im3, angle=angle)
 
             t = im2
             

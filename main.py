@@ -7,7 +7,7 @@ from unet import Classic_UNet
 # Declare Global Settings
 root_dir = "/home/luigifcruz/Sandbox/DataScience/vimeo_triplet/sequences"
 input_size = (448, 256, 3)
-learning_rate = 0.01
+learning_rate = 0.001
 min_lr = 0.0000001
 patience = 2
 batch_size = 16
@@ -17,7 +17,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Declare Interation Settings
 interations = [
-    {"model": Classic_UNet, "save_dir": 'runs/A2', "net_size": 6},
+    {"model": Classic_UNet, "save_dir": 'runs/A3', "net_size": 3},
 ]
 
 if __name__ == "__main__":

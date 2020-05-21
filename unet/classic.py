@@ -14,8 +14,7 @@ class Classic_UNet(nn.Module):
 
         s = net_size
 
-        self.inc = DoubleConv(input_ch, 2*s)
-        self.inc2 = DoubleConv(2*s*3, 2*s)
+        self.p_conv = DoubleConv(input_ch, 2*s)
 
         self.down1 = Down(2*s, 4*s)
         self.down2 = Down(4*s, 8*s)
@@ -25,28 +24,36 @@ class Classic_UNet(nn.Module):
         self.up2 = Up(16*s, 4*s)
         self.up3 = Up(8*s, 2*s)
         self.up4 = Up(4*s, 2*s)
+
+        self.s_conv = DoubleConv(2*s, s)
+        self.f_conv = DoubleConv(3*s, s)
+        
         self.outc = OutConv(2*s, output_ch)
 
-    def forward(self, im1, im2, im3):
+    def forward(self, a, b, c):
+        za = self.p_conv(a)
+        zb = self.p_conv(b)
+        zc = self.p_conv(c)
+        
+        xb2 = self.down1(zb)
+        xb3 = self.down2(xb2)
+        xb4 = self.down3(xb3)
+        xb5 = self.down4(xb4)
 
-        x1 = torch.cat([
-            self.inc(im1),
-            self.inc(im2),
-            self.inc(im3)
-        ], dim=1)
-        x1 = self.inc2(x1)
+        xb = self.up1(xb5, xb4)
+        xb = self.up2(xb, xb3)
+        xb = self.up3(xb, xb2)
+        xb = self.up4(xb, zb)
+        xb = self.s_conv(xb)
 
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        x5 = self.down4(x4)
+        yab = torch.cat([xb, za], dim=1)
+        yab = self.f_conv(yab)
 
-        x = self.up1(x5, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
+        ybc = torch.cat([xb, zc], dim=1)
+        ybc = self.f_conv(ybc)
 
-        out = self.outc(x)
+        out = torch.cat([yab, ybc], dim=1)
+        out = self.outc(out)
 
         return out
 
