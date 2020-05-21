@@ -15,7 +15,7 @@ class Classic_UNet(nn.Module):
         s = net_size
 
         self.p_conv = DoubleConv(input_ch, 2*s)
-        self.s_down = Down(2*s, 16*s, force=16, mode='avg')
+        self.s_down = Down(2*s, 16*s, force=16, mode='max')
 
         self.down1 = Down(2*s, 4*s)
         self.down2 = Down(4*s, 8*s)

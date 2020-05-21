@@ -54,7 +54,7 @@ class ExternalInputIterator(object):
 
 class ExternalSourcePipeline(Pipeline):
     def __init__(self, data_iterator, batch_size, num_threads, device_id, size, eval_enabled=False):
-        super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id, exec_async=False, exec_pipelined=False)
+        super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
         self.data_iterator = data_iterator
         self.eval_enabled = eval_enabled
         
@@ -113,9 +113,9 @@ class ExternalSourcePipeline(Pipeline):
 
             t = im2
             
-            im1 = self.up(self.down(self.aug(im1)))
-            im2 = self.up(self.down(self.aug(im2)))
-            im3 = self.up(self.down(self.aug(im3)))
+            im1 = self.up(self.down(im1))
+            im2 = self.up(self.down(im2))
+            im3 = self.up(self.down(im3))
         else:
             im1 = self.int(im1)
             im2 = self.int(im2)

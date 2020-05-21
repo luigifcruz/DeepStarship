@@ -17,7 +17,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Declare Interation Settings
 interations = [
-    {"model": Classic_UNet, "save_dir": 'runs/A4', "net_size": 16},
+    {"model": Classic_UNet, "save_dir": 'runs/A5', "net_size": 8},
 ]
 
 if __name__ == "__main__":
