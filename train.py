@@ -13,8 +13,7 @@ import torchvision.datasets as datasets
 from dataset import ExternalInputIterator, ExternalSourcePipeline
 from eval import eval_net
 from test import test_net
-from utils import accuracy, cv_resize, cv_open, get_lr, normalize_dims
-from utils import safe_div, AverageMeter, accuracy
+from utils import safe_div, AverageMeter, get_lr
 
 from nvidia.dali.plugin.pytorch import DALIGenericIterator
 
@@ -22,8 +21,6 @@ import logging
 formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
 
 def setup_logger(log_file, level=logging.INFO):
-    """To setup as many loggers as you want"""
-
     handler = logging.FileHandler(log_file, "a")        
     handler.setFormatter(formatter)
 
@@ -34,10 +31,8 @@ def setup_logger(log_file, level=logging.INFO):
 
     return logger
 
-def run(model, net_size, root_dir, save_dir, input_size, batch_size, learning_rate, min_lr, epochs, percentages, device, patience):
-    model = model(input_ch=3, output_ch=3, net_size=net_size)
 
-    # Generate Necessary Files
+def load_model(model, save_dir):
     if os.path.isdir(save_dir):
         res = input(f"Directory already exists: {save_dir}\n1 - Use it anyway.\n2 - Delete.\n3 - Exit.\n>> ")
         if res == '2':
@@ -61,6 +56,14 @@ def run(model, net_size, root_dir, save_dir, input_size, batch_size, learning_ra
         model.load_state_dict(torch.load(os.path.join(save_dir, latest)))
     else:
         epoch = 0
+
+    return model, epoch
+
+
+def run(model, net_size, root_dir, save_dir, input_size, batch_size, learning_rate, min_lr, epochs, device, patience):
+    model = model(input_ch=3, output_ch=3, net_size=net_size)
+
+    model, epoch = load_model(model, save_dir)
     
     # Load Datasets
     elements = ['im1', 'im2', 'im3', 'targets']
@@ -99,7 +102,6 @@ def run(model, net_size, root_dir, save_dir, input_size, batch_size, learning_ra
     Learning Rate:   {learning_rate}
     Minimum LR:      {min_lr}
     Patience:        {patience}
-    Dataset Setting: {percentages}
     Training size:   {train_iter.n}
     Validation size: {valid_iter.n}
     Save Directory:  {save_dir}
@@ -115,7 +117,6 @@ def run(model, net_size, root_dir, save_dir, input_size, batch_size, learning_ra
         model.train()
 
         train_loss = AverageMeter()
-        train_acc = AverageMeter()
         
         with tqdm(total=train_iter.n, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
             for _, it in enumerate(train_dali_iter):
@@ -129,17 +130,13 @@ def run(model, net_size, root_dir, save_dir, input_size, batch_size, learning_ra
                 loss = criterion(output, targets)
                 train_loss.update(loss.item(), im1.size(0))
 
-                acc = accuracy(output, targets)
-                train_acc.update(acc, im1.size(0))
-
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
 
                 writer.add_scalar('Training Loss', loss.item(), global_step)
-                writer.add_scalar('Training Accuracy', train_acc.val, global_step)
 
-                pbar.set_postfix(**{'acc': train_acc.avg, 'loss': train_loss.avg})
+                pbar.set_postfix(**{'loss_l2': train_loss.avg})
                 pbar.update(im1.shape[0])
 
                 if (global_step % 256) == 0:
@@ -155,20 +152,19 @@ def run(model, net_size, root_dir, save_dir, input_size, batch_size, learning_ra
 
                 global_step += 1
 
-            val_loss, val_acc = eval_net(model, valid_dali_iter, device, valid_iter.n, writer, global_step)
+            val_loss = eval_net(model, valid_dali_iter, device, valid_iter.n, writer, global_step)
             scheduler.step(val_loss)
 
             if get_lr(optimizer) <= min_lr:
                 logger.info('Minimum Learning Rate Reached: Early Stopping')
                 break
                 
-            writer.add_scalar('Validation Accuracy', val_acc, global_step)
             writer.add_scalar('Validation Loss', val_loss, global_step)
             writer.add_scalar('Learning Rate', get_lr(optimizer), global_step)
 
             torch.save(model.state_dict(), os.path.join(save_dir, "model_save_epoch_{}.pth".format(epoch)))
             logger.info('Checkpoint {} saved!'.format(epoch))
-            logger.info('Validation Loss: {}'.format(val_loss))
+            logger.info('Validation Loss L2: {}'.format(val_loss))
             logger.info('Learning Rate: {}'.format(get_lr(optimizer)))
 
             train_dali_iter.reset()

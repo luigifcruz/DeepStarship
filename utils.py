@@ -1,31 +1,6 @@
 import torch
 import cv2
 
-
-class cv_open(object):
-
-    def __call__(self, sample):
-        print(sample)
-        img = cv2.imread(sample, cv2.IMREAD_UNCHANGED)
-        if len(img.shape) == 3:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        return img 
-
-class cv_resize(object):
-
-    def __init__(self, size, smaller=False):
-        self.size = (size, size)
-        self.smaller = smaller
-    
-    def __call__(self, sample):
-        interpolation = cv2.INTER_LANCZOS4
-
-        if self.smaller:
-            interpolation = cv2.INTER_AREA
-
-        return cv2.resize(sample, self.size, interpolation)
-
-
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
         return param_group['lr']
@@ -46,10 +21,12 @@ def normalize_dims(sample):
 
     return sample
 
+
 def safe_div(x,y):
     if y == 0:
         return 0
     return x / y
+
 
 class AverageMeter(object):
     '''
@@ -70,6 +47,7 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
 
 def accuracy(outputs, targets):
     """Computes the accuracy over the k top predictions for the specified values of k"""

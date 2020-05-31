@@ -18,11 +18,7 @@ class ExternalInputIterator(object):
     def __init__(self, batch_size, data_dir):
         self.batch_size = batch_size
         self.data_dir = data_dir
-        #self.files = list(Path(self.data_dir).rglob("*.[jJpP][pPnN][gG]"))
-        self.files = []
-        self.dirs = [ f.path for f in os.scandir(self.data_dir) if f.is_dir() ]
-        for d in self.dirs:
-            self.files.extend([ f.path for f in os.scandir(d) if f.is_dir() ])
+        self.files = [ f.path for f in os.scandir(self.data_dir) if f.is_dir() ]
         shuffle(self.files)
 
     def __iter__(self):
@@ -31,32 +27,32 @@ class ExternalInputIterator(object):
         return self
 
     def __next__(self):
-        im1_batch = []
-        im2_batch = []
-        im3_batch = []
+        batch = []
 
         for _ in range(self.batch_size):
-            jpeg_path = self.files[self.i]
-
-            im1 = os.path.join(jpeg_path, "im1.png")
-            im2 = os.path.join(jpeg_path, "im2.png")
-            im3 = os.path.join(jpeg_path, "im3.png")
-
-            im1_batch.append(np.frombuffer(open(im1, 'rb').read(), dtype=np.uint8))
-            im2_batch.append(np.frombuffer(open(im2, 'rb').read(), dtype=np.uint8))
-            im3_batch.append(np.frombuffer(open(im3, 'rb').read(), dtype=np.uint8))            
-
+            batch.append(self.files[self.i])
             self.i = (self.i + 1) % self.n
 
-        return (im1_batch, im2_batch, im3_batch)
+        return batch
 
     next = __next__
+
+class SequenceSourcePipeline(Pipeline):
+    def __init__(self, data_iterator, batch_size, num_threads, device_id, size):
+        super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
+        self.data_iterator = data_iterator
+
+        self.source = ops.SequenceReader(device="cpu", file_root)
+
 
 class ExternalSourcePipeline(Pipeline):
     def __init__(self, data_iterator, batch_size, num_threads, device_id, size, eval_enabled=False):
         super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
         self.data_iterator = data_iterator
         self.eval_enabled = eval_enabled
+
+        self.ops.SequenceReader(device="cpu", file_root)
+
         
         self.iim1 = ops.ExternalSource()
         self.iim2 = ops.ExternalSource()
@@ -64,25 +60,16 @@ class ExternalSourcePipeline(Pipeline):
         
         self.decode = ops.ImageDecoder(device="mixed", output_type=types.RGB)
 
-        self.rint = ops.Reshape(device="gpu", rel_shape=[1, 1, -1])
-
         self.int = ops.Resize(device="gpu", resize_x=size[0]*2, resize_y=size[1]*2, image_type=types.RGB, interp_type=types.INTERP_CUBIC)
 
         self.res = ops.Resize(device="gpu", resize_x=size[0], resize_y=size[1], image_type=types.RGB, interp_type=types.INTERP_LINEAR)
-        self.down = ops.Resize(device="gpu", resize_x=size[0]//2, resize_y=size[1]//2, image_type=types.RGB, interp_type=types.INTERP_GAUSSIAN)
+        self.down = ops.Resize(device="gpu", resize_x=size[0]//2, resize_y=size[1]//2, image_type=types.RGB, interp_type=types.INTERP_LANCZOS3)
         self.up = ops.Resize(device="gpu", resize_x=size[0], resize_y=size[1], image_type=types.RGB, interp_type=types.INTERP_CUBIC)
-        
-        self.seq = A.Compose({
-            A.ElasticTransform(alpha=25, sigma=500, alpha_affine=1, approximate=True, p=1.0),
-            A.GaussianBlur(blur_limit=3, p=1),
-            A.GaussNoise(p=1),
-        })
-        self.aug = ops.DLTensorPythonFunction(device="gpu", function=self.augmentation)
-
-        self.cmn = ops.CropMirrorNormalize(device="gpu", std=255., mean=0., output_dtype=types.FLOAT, image_type=types.RGB)
 
         self.rotate = ops.Rotate(device='gpu', interp_type=types.INTERP_LINEAR, keep_size=True)
         self.uniform = ops.Uniform(range = (-50., 50.))
+
+        self.finish = ops.CropMirrorNormalize(device="gpu", std=255., mean=0., output_dtype=types.FLOAT, image_type=types.RGB)
 
     def augmentation(self, dlpacks):
         tensors = torch.stack([torch_dlpack.from_dlpack(dlpack) for dlpack in dlpacks]).to('cpu')
@@ -113,20 +100,20 @@ class ExternalSourcePipeline(Pipeline):
 
             t = im2
             
-            im1 = self.up(self.down(im1))
-            im2 = self.up(self.down(im2))
-            im3 = self.up(self.down(im3))
+            im1 = self.down(im1)
+            im2 = self.down(im2)
+            im3 = self.down(im3)
         else:
-            im1 = self.int(im1)
-            im2 = self.int(im2)
-            im3 = self.int(im3)
-
             t = self.int(im2)
+
+            im1 = self.res(im1)
+            im2 = self.res(im2)
+            im3 = self.res(im3)
         
-        im1 = self.cmn(im1)
-        im2 = self.cmn(im2)
-        im3 = self.cmn(im3)
-        targets = self.cmn(t)
+        im1 = self.finish(im1)
+        im2 = self.finish(im2)
+        im3 = self.finish(im3)
+        targets = self.finish(t)
 
         return (im1, im2, im3, targets)
 
